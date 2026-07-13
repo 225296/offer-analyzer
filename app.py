@@ -315,12 +315,13 @@ if extracted:
         st.subheader("Previous Offer")
         prev_edited = {}
         for field in fields_to_extract:
-            val = prev_data[field]
+            val = int(prev_data[field]) if prev_data[field] else 0
+            step = 100000 if currency_sel == "INR" else 1000
             prev_edited[field] = st.number_input(
                 field_labels[field],
-                value=val if val else 0.0,
-                min_value=0.0,
-                step=100000.0 if currency_sel == "INR" else 1000.0,
+                value=val,
+                min_value=0,
+                step=step,
                 key=f"prev_{field}",
             )
 
@@ -328,12 +329,13 @@ if extracted:
         st.subheader("Current Offer")
         curr_edited = {}
         for field in fields_to_extract:
-            val = curr_data[field]
+            val = int(curr_data[field]) if curr_data[field] else 0
+            step = 100000 if currency_sel == "INR" else 1000
             curr_edited[field] = st.number_input(
                 field_labels[field],
-                value=val if val else 0.0,
-                min_value=0.0,
-                step=100000.0 if currency_sel == "INR" else 1000.0,
+                value=val,
+                min_value=0,
+                step=step,
                 key=f"curr_{field}",
             )
 
