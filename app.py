@@ -1,52 +1,182 @@
 import streamlit as st
 import re
-from io import BytesIO
 import PyPDF2
 from docx import Document
 
-st.set_page_config(page_title="Offer Letter Analyzer", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="Offer Letter Analyzer",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
 # ============================================================================
-# CSS Styling
+# Accenture-themed styling
+#   Brand: Accenture Purple #A100FF, black, white, the ">" mark
 # ============================================================================
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+    :root {
+        --acc-purple: #A100FF;
+        --acc-purple-dk: #7500C0;
+        --acc-magenta: #E619E6;
+        --acc-black: #101010;
+        --acc-grey: #6E6E80;
+    }
+
+    html, body, [class*="css"], .stApp {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
     [data-testid="stMainBlockContainer"] {
-        padding-top: 2rem;
+        padding-top: 1.5rem;
+        max-width: 1180px;
     }
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 20px;
-        border-radius: 12px;
-        color: white;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+
+    /* Hero header */
+    .acc-hero {
+        background: linear-gradient(120deg, #A100FF 0%, #7500C0 45%, #460073 100%);
+        border-radius: 20px;
+        padding: 38px 40px;
+        color: #fff;
+        margin-bottom: 28px;
+        box-shadow: 0 18px 45px rgba(161, 0, 255, 0.35);
+        position: relative;
+        overflow: hidden;
     }
-    .stat-value {
-        font-size: 2.5em;
-        font-weight: 900;
-        margin: 10px 0;
-    }
-    .stat-label {
-        font-size: 0.9em;
-        opacity: 0.9;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-    .hike-up { color: #34d399; }
-    .hike-down { color: #f87171; }
-    .section-header {
-        font-size: 1.8em;
+    .acc-hero::after {
+        content: ">";
+        position: absolute;
+        right: 24px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 190px;
         font-weight: 800;
-        margin: 2rem 0 1rem;
-        border-bottom: 2px solid #667eea;
-        padding-bottom: 0.5rem;
+        color: rgba(255,255,255,0.10);
+        line-height: 1;
     }
+    .acc-hero h1 {
+        font-size: 2.5rem;
+        font-weight: 900;
+        letter-spacing: -1.2px;
+        margin: 0 0 6px 0;
+        color: #fff;
+    }
+    .acc-hero h1 .gt { color: #ffffff; opacity: .85; margin-right: 4px; }
+    .acc-hero p {
+        font-size: 1.05rem;
+        opacity: 0.92;
+        margin: 0;
+        max-width: 640px;
+    }
+    .acc-badge {
+        display: inline-block;
+        background: rgba(255,255,255,0.16);
+        border: 1px solid rgba(255,255,255,0.28);
+        padding: 6px 14px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: .4px;
+        margin-top: 16px;
+    }
+
+    /* Section headings */
+    .acc-section {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--acc-black);
+        margin: 2.2rem 0 0.4rem;
+        letter-spacing: -0.4px;
+    }
+    .acc-section .gt { color: var(--acc-purple); margin-right: 8px; font-weight: 900; }
+    .acc-sub { color: var(--acc-grey); font-size: 0.95rem; margin-bottom: 1.2rem; }
+
+    /* Card panels */
+    .acc-panel-title {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: var(--acc-purple-dk);
+        border-left: 4px solid var(--acc-purple);
+        padding-left: 12px;
+        margin-bottom: 6px;
+    }
+
+    /* Buttons */
+    .stButton > button {
+        background: linear-gradient(120deg, #A100FF, #7500C0);
+        color: #fff;
+        border: none;
+        border-radius: 12px;
+        padding: 0.7rem 1.4rem;
+        font-weight: 700;
+        font-size: 1rem;
+        letter-spacing: .2px;
+        box-shadow: 0 8px 22px rgba(161,0,255,0.30);
+        transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 28px rgba(161,0,255,0.42);
+        color: #fff;
+    }
+    .stButton > button:focus:not(:active) { color: #fff; }
+
+    /* Metric cards */
+    [data-testid="stMetric"] {
+        background: #fff;
+        border: 1px solid #EFE6FA;
+        border-radius: 16px;
+        padding: 18px 20px;
+        box-shadow: 0 6px 18px rgba(80,0,120,0.06);
+    }
+    [data-testid="stMetricValue"] {
+        color: var(--acc-purple-dk);
+        font-weight: 900;
+    }
+    [data-testid="stMetricLabel"] {
+        color: var(--acc-grey);
+        font-weight: 600;
+    }
+
+    /* Big hike banner */
+    .hike-banner {
+        border-radius: 20px;
+        padding: 34px;
+        text-align: center;
+        margin: 8px 0 20px;
+        color: #fff;
+    }
+    .hike-up   { background: linear-gradient(120deg, #A100FF, #7500C0); box-shadow: 0 16px 40px rgba(161,0,255,.32); }
+    .hike-down { background: linear-gradient(120deg, #6E6E80, #3a3a44); box-shadow: 0 16px 40px rgba(60,60,70,.32); }
+    .hike-banner .lbl { font-size: .85rem; letter-spacing: 2px; text-transform: uppercase; opacity: .9; font-weight: 700; }
+    .hike-banner .val { font-size: 4.2rem; font-weight: 900; letter-spacing: -3px; line-height: 1.05; margin: 6px 0; }
+    .hike-banner .dlt { font-size: 1.05rem; opacity: .95; }
+    .hike-banner .dlt b { font-weight: 800; }
+
+    /* Dataframe */
+    [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
+
+    /* Uploader */
+    [data-testid="stFileUploaderDropzone"] {
+        background: #FBF7FF;
+        border: 2px dashed #D9BFF5;
+        border-radius: 14px;
+    }
+
+    /* Progress bar color */
+    [data-testid="stProgress"] > div > div > div > div {
+        background: linear-gradient(90deg, #A100FF, #E619E6);
+    }
+
+    .fineprint { color: var(--acc-grey); font-size: 0.82rem; text-align: center; margin-top: 1.5rem; }
 </style>
 """, unsafe_allow_html=True)
 
 # ============================================================================
-# Parse Functions
+# Parsing logic
 # ============================================================================
 
 CURRENCIES = {"INR": "₹", "USD": "$", "EUR": "€", "GBP": "£", "AED": "د.إ"}
@@ -63,17 +193,15 @@ MONTHLY_RE = re.compile(r"per\s+month|monthly|p\.?m\.?\b|\/\s*month", re.I)
 ANNUAL_RE = re.compile(r"per\s+annum|annual|yearly|p\.?a\.?\b|\/\s*year|lpa", re.I)
 AMOUNT_RE = re.compile(
     r"(?:₹|rs\.?|inr|\$|usd|€|eur|£|gbp|aed)?\s*([\d]{1,3}(?:,\d{2,3})*(?:\.\d+)?|\d+(?:\.\d+)?)\s*(lpa|lakhs?|lacs?|crores?|cr\b|k\b|million|mn\b)?",
-    re.I
+    re.I,
 )
 
 
 def to_number(num_str, unit=""):
-    """Convert a matched amount string to a number."""
     try:
         n = float(num_str.replace(",", ""))
-    except:
+    except ValueError:
         return None
-
     unit = (unit or "").lower()
     if re.search(r"lpa|lakh|lac", unit):
         n *= 100000
@@ -83,83 +211,58 @@ def to_number(num_str, unit=""):
         n *= 1000
     elif re.search(r"million|mn|m$", unit):
         n *= 1000000
-
     return int(round(n))
 
 
 def amounts_in(text):
-    """Find all money-like values in text."""
     amounts = []
     for m in AMOUNT_RE.finditer(text):
-        raw = m.group(1)
-        unit = m.group(2)
+        raw, unit = m.group(1), m.group(2)
         val = to_number(raw, unit)
-
         if val is None:
             continue
-
         has_unit = bool(unit)
         has_symbol = bool(re.search(r"₹|rs\.?|inr|\$|usd|€|eur|£|gbp|aed", m.group(0), re.I))
         has_commas = "," in raw
-
         if not has_unit and not has_symbol and not has_commas and val < 10000:
             continue
         if val < 100:
             continue
-
         amounts.append(val)
-
     return amounts
 
 
 def extract_field(lines, key):
-    """Extract a specific field from offer letter lines."""
     pattern = re.compile(KEYWORDS[key], re.I)
     candidates = []
-
     for i, line in enumerate(lines):
         if not pattern.search(line):
             continue
-
         search_text = line
         vals = amounts_in(search_text)
-
         if not vals and i + 1 < len(lines):
             search_text = line + " " + lines[i + 1]
             vals = amounts_in(lines[i + 1])
-
         if not vals:
             continue
-
         v = max(vals)
         if MONTHLY_RE.search(search_text) and not ANNUAL_RE.search(search_text):
             v *= 12
-
         candidates.append(v)
-
     if not candidates:
         return None
-
     return max(candidates) if key == "ctc" else candidates[0]
 
 
 def extract_offer(text):
-    """Extract all offer components from text."""
     lines = [l.strip() for l in text.split("\n") if l.strip()]
-    result = {}
-
-    for key in ["ctc", "base", "variable", "joining", "stock"]:
-        result[key] = extract_field(lines, key)
-
-    # Sanity check: CTC should not be less than base
+    result = {k: extract_field(lines, k) for k in ["ctc", "base", "variable", "joining", "stock"]}
     if result["ctc"] and result["base"] and result["ctc"] < result["base"]:
         result["ctc"], result["base"] = result["base"], result["ctc"]
-
     return result
 
 
 def detect_currency(text):
-    """Detect currency from text."""
     scores = {
         "INR": len(re.findall(r"₹|(?:^|\W)(rs\.?|inr)(?:\W)|lpa|lakh|lac|crore", text, re.I)),
         "USD": len(re.findall(r"\$|usd", text, re.I)),
@@ -167,285 +270,230 @@ def detect_currency(text):
         "GBP": len(re.findall(r"£|gbp", text, re.I)),
         "AED": len(re.findall(r"aed|dirham", text, re.I)),
     }
-    top_currency = max(scores, key=scores.get)
-    return top_currency if scores[top_currency] > 0 else "INR"
+    top = max(scores, key=scores.get)
+    return top if scores[top] > 0 else "INR"
 
 
 def read_file(uploaded_file):
-    """Read content from uploaded file."""
-    if uploaded_file.type == "application/pdf":
-        pdf_reader = PyPDF2.PdfReader(uploaded_file)
+    name = uploaded_file.name.lower()
+    if name.endswith(".pdf"):
+        reader = PyPDF2.PdfReader(uploaded_file)
         text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text() + "\n"
+        for page in reader.pages:
+            text += (page.extract_text() or "") + "\n"
+        if len(text.strip()) < 30:
+            raise ValueError("This PDF looks scanned (no selectable text). Please paste the text instead.")
         return text
-
-    elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    if name.endswith(".docx"):
         doc = Document(uploaded_file)
-        text = "\n".join([para.text for para in doc.paragraphs])
-        return text
-
-    else:  # txt
-        return uploaded_file.getvalue().decode("utf-8")
+        return "\n".join(p.text for p in doc.paragraphs)
+    return uploaded_file.getvalue().decode("utf-8", errors="ignore")
 
 
 def fmt_money(n, currency):
-    """Format number as money."""
-    if n is None or (isinstance(n, float) and n != n):  # NaN check
+    if n is None:
         return "—"
-
     n = int(n)
     sym = CURRENCIES.get(currency, "")
-
     if currency == "INR":
         if n >= 10000000:
-            return f"{sym}{n / 10000000:.2f}".rstrip("0").rstrip(".") + " Cr"
+            return sym + (f"{n / 10000000:.2f}".rstrip("0").rstrip(".")) + " Cr"
         if n >= 100000:
-            return f"{sym}{n / 100000:.2f}".rstrip("0").rstrip(".") + " L"
+            return sym + (f"{n / 100000:.2f}".rstrip("0").rstrip(".")) + " L"
         return f"{sym}{n:,}"
-
     if n >= 1000000:
-        return f"{sym}{n / 1000000:.1f}".rstrip("0").rstrip(".") + "M"
+        return sym + (f"{n / 1000000:.1f}".rstrip("0").rstrip(".")) + "M"
     if n >= 1000:
-        return f"{sym}{n / 1000:.1f}".rstrip("0").rstrip(".") + "K"
-
+        return sym + (f"{n / 1000:.1f}".rstrip("0").rstrip(".")) + "K"
     return f"{sym}{n:,}"
 
 
 def fmt_full(n, currency):
-    """Format number as full currency amount."""
-    if n is None or (isinstance(n, float) and n != n):
+    if n is None:
         return "—"
-
-    n = int(n)
-    sym = CURRENCIES.get(currency, "")
-    return f"{sym}{n:,}"
+    return f"{CURRENCIES.get(currency, '')}{int(n):,}"
 
 
-# ============================================================================
-# Main UI
-# ============================================================================
-
-st.markdown("# 📊 Offer Letter Analyzer")
-st.markdown("Upload your previous and current offer letters to compare salary, hike %, bonus, and benefits.")
-
-st.markdown('<div style="background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); padding: 12px; border-radius: 8px; margin-bottom: 2rem;"><b>🔒 Privacy:</b> Files are processed in your browser session and never stored.</div>', unsafe_allow_html=True)
+FIELDS = ["ctc", "base", "variable", "joining", "stock"]
+FIELD_LABELS = {
+    "ctc": "Total CTC / Annual Package",
+    "base": "Base / Fixed Salary",
+    "variable": "Variable Pay / Performance Bonus",
+    "joining": "Joining / Sign-on Bonus",
+    "stock": "Stocks / RSU / ESOP (per year)",
+}
 
 # ============================================================================
-# File Upload
+# UI
 # ============================================================================
 
-col1, col2 = st.columns(2)
+st.markdown("""
+<div class="acc-hero">
+    <h1><span class="gt">&gt;</span>Offer Letter Analyzer</h1>
+    <p>Upload your previous and current offer letters to instantly compare salary, hike percentage, bonuses and benefits — clearly and confidently.</p>
+    <div class="acc-badge">🔒 Private — files are processed in this session and never stored</div>
+</div>
+""", unsafe_allow_html=True)
 
-with col1:
-    st.subheader("📄 Previous Org Offer")
-    prev_file = st.file_uploader("Upload or paste previous offer", key="prev", type=["pdf", "docx", "txt"])
+# ---- Session state init ----
+for flag in ["extracted", "calculated"]:
+    if flag not in st.session_state:
+        st.session_state[flag] = False
 
-    if not prev_file:
-        prev_text = st.text_area("Or paste the text here:", key="prev_text", height=200, placeholder="Paste your previous offer letter text...")
-    else:
-        prev_text = None
+# ---- Step 1: Upload ----
+st.markdown('<div class="acc-section"><span class="gt">&gt;</span>Step 1 · Upload Offer Letters</div>', unsafe_allow_html=True)
 
-with col2:
-    st.subheader("📄 Current Org Offer")
-    curr_file = st.file_uploader("Upload or paste current offer", key="curr", type=["pdf", "docx", "txt"])
+c1, c2 = st.columns(2)
+with c1:
+    st.markdown('<div class="acc-panel-title">Previous Org Offer</div>', unsafe_allow_html=True)
+    prev_file = st.file_uploader("Upload PDF, DOCX or TXT", key="prev_file", type=["pdf", "docx", "txt"])
+    prev_text = st.text_area("…or paste the text here", key="prev_text", height=140,
+                             placeholder="Paste your previous offer letter text…") if not prev_file else None
+with c2:
+    st.markdown('<div class="acc-panel-title">Current Offer</div>', unsafe_allow_html=True)
+    curr_file = st.file_uploader("Upload PDF, DOCX or TXT", key="curr_file", type=["pdf", "docx", "txt"])
+    curr_text = st.text_area("…or paste the text here", key="curr_text", height=140,
+                             placeholder="Paste your current offer letter text…") if not curr_file else None
 
-    if not curr_file:
-        curr_text = st.text_area("Or paste the text here:", key="curr_text", height=200, placeholder="Paste your current offer letter text...")
-    else:
-        curr_text = None
-
-# Extract text from files or use pasted text
-prev_content = None
-curr_content = None
-extracted = False
-
-if st.button("🔍 Read & Extract Data", type="primary", use_container_width=True):
+if st.button("🔍  Read & Extract Data", width='stretch'):
     try:
-        if prev_file:
-            prev_content = read_file(prev_file)
-        elif prev_text:
-            prev_content = prev_text
-        else:
-            st.error("Please upload or paste your previous offer letter")
+        prev_content = read_file(prev_file) if prev_file else prev_text
+        curr_content = read_file(curr_file) if curr_file else curr_text
+        if not prev_content or not str(prev_content).strip():
+            st.error("Please provide the previous offer letter (upload or paste).")
+            st.stop()
+        if not curr_content or not str(curr_content).strip():
+            st.error("Please provide the current offer letter (upload or paste).")
             st.stop()
 
-        if curr_file:
-            curr_content = read_file(curr_file)
-        elif curr_text:
-            curr_content = curr_text
-        else:
-            st.error("Please upload or paste your current offer letter")
-            st.stop()
+        prev_data = extract_offer(prev_content)
+        curr_data = extract_offer(curr_content)
+        currency = detect_currency(prev_content + " " + curr_content)
 
-        extracted = True
+        # Seed widget values via session_state so number inputs pre-fill
+        for f in FIELDS:
+            st.session_state[f"prev_{f}"] = int(prev_data[f] or 0)
+            st.session_state[f"curr_{f}"] = int(curr_data[f] or 0)
+        st.session_state["currency_sel"] = currency
+        st.session_state["extracted"] = True
+        st.session_state["calculated"] = False
+
+        found = sum(1 for f in FIELDS if prev_data[f]) + sum(1 for f in FIELDS if curr_data[f])
+        st.session_state["found_count"] = found
     except Exception as e:
-        st.error(f"❌ Error reading file: {str(e)}")
-        st.stop()
+        st.error(f"❌ Could not read file: {e}")
 
-if extracted:
-    # Extract data
-    prev_data = extract_offer(prev_content)
-    curr_data = extract_offer(curr_content)
-    detected_currency = detect_currency(prev_content + " " + curr_content)
+# ---- Step 2: Review ----
+if st.session_state["extracted"]:
+    st.markdown('<div class="acc-section"><span class="gt">&gt;</span>Step 2 · Review What We Found</div>', unsafe_allow_html=True)
+    fc = st.session_state.get("found_count", 0)
+    if fc == 0:
+        st.markdown('<div class="acc-sub">No amounts were auto-detected — please enter the figures manually below. Enter <b>annual</b> values.</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div class="acc-sub">Auto-detected <b>{fc}</b> value(s). Please verify and correct anything below. Enter <b>annual</b> values.</div>', unsafe_allow_html=True)
 
-    # ============================================================================
-    # Step 2: Review and Edit
-    # ============================================================================
-
-    st.markdown("<div class='section-header'>Step 2 · Review Extracted Data</div>", unsafe_allow_html=True)
-    st.markdown("Verify the auto-detected values below. Edit anything that looks wrong. Enter **annual** figures.")
-
-    col_cur, _ = st.columns([2, 3])
-    with col_cur:
-        currency_sel = st.selectbox("Select Currency:", list(CURRENCIES.keys()), index=list(CURRENCIES.keys()).index(detected_currency))
+    cur_col, _ = st.columns([1, 2])
+    with cur_col:
+        currency_sel = st.selectbox("Currency", list(CURRENCIES.keys()), key="currency_sel")
+    step = 100000 if currency_sel == "INR" else 1000
 
     col1, col2 = st.columns(2)
-
-    fields_to_extract = ["ctc", "base", "variable", "joining", "stock"]
-    field_labels = {
-        "ctc": "Total CTC / Annual Package",
-        "base": "Base / Fixed Salary",
-        "variable": "Variable Pay / Performance Bonus",
-        "joining": "Joining / Sign-on Bonus",
-        "stock": "Stocks / RSU / ESOP (per year)",
-    }
-
     with col1:
-        st.subheader("Previous Offer")
-        prev_edited = {}
-        for field in fields_to_extract:
-            val = int(prev_data[field]) if prev_data[field] else 0
-            step = 100000 if currency_sel == "INR" else 1000
-            prev_edited[field] = st.number_input(
-                field_labels[field],
-                value=val,
-                min_value=0,
-                step=step,
-                key=f"prev_{field}",
-            )
-
+        st.markdown('<div class="acc-panel-title">Previous Offer</div>', unsafe_allow_html=True)
+        for f in FIELDS:
+            st.number_input(FIELD_LABELS[f], min_value=0, step=step, key=f"prev_{f}")
     with col2:
-        st.subheader("Current Offer")
-        curr_edited = {}
-        for field in fields_to_extract:
-            val = int(curr_data[field]) if curr_data[field] else 0
-            step = 100000 if currency_sel == "INR" else 1000
-            curr_edited[field] = st.number_input(
-                field_labels[field],
-                value=val,
-                min_value=0,
-                step=step,
-                key=f"curr_{field}",
-            )
+        st.markdown('<div class="acc-panel-title">Current Offer</div>', unsafe_allow_html=True)
+        for f in FIELDS:
+            st.number_input(FIELD_LABELS[f], min_value=0, step=step, key=f"curr_{f}")
 
-    # ============================================================================
-    # Step 3: Calculate
-    # ============================================================================
+    if st.button("⚡  Calculate Hike & Comparison", width='stretch'):
+        st.session_state["calculated"] = True
 
-    if st.button("⚡ Calculate Hike & Comparison", type="primary", use_container_width=True):
-        prev_total = prev_edited["ctc"] or (prev_edited["base"] + prev_edited["variable"])
-        curr_total = curr_edited["ctc"] or (curr_edited["base"] + curr_edited["variable"])
+# ---- Step 3: Results ----
+if st.session_state["extracted"] and st.session_state["calculated"]:
+    currency = st.session_state["currency_sel"]
+    prev = {f: int(st.session_state[f"prev_{f}"]) for f in FIELDS}
+    curr = {f: int(st.session_state[f"curr_{f}"]) for f in FIELDS}
 
-        if not prev_total or not curr_total:
-            st.error("Please fill in Total CTC (or Base + Variable) for both offers.")
-            st.stop()
+    prev_total = prev["ctc"] or (prev["base"] + prev["variable"])
+    curr_total = curr["ctc"] or (curr["base"] + curr["variable"])
 
-        hike_pct = ((curr_total - prev_total) / prev_total) * 100
-        diff = curr_total - prev_total
-        monthly_diff = diff / 12
+    if not prev_total or not curr_total:
+        st.error("Please fill in Total CTC (or at least Base salary) for both offers.")
+        st.stop()
 
-        # ============================================================================
-        # Results
-        # ============================================================================
+    hike = (curr_total - prev_total) / prev_total * 100
+    diff = curr_total - prev_total
+    monthly_diff = diff / 12
 
-        st.markdown("<div class='section-header'>Step 3 · Your Results</div>", unsafe_allow_html=True)
+    st.markdown('<div class="acc-section"><span class="gt">&gt;</span>Step 3 · Your Results</div>', unsafe_allow_html=True)
 
-        # Hike banner
-        hike_color = "hike-up" if hike_pct >= 0 else "hike-down"
-        hike_sign = "+" if hike_pct >= 0 else ""
+    cls = "hike-up" if hike >= 0 else "hike-down"
+    sign = "+" if hike >= 0 else ""
+    st.markdown(f"""
+    <div class="hike-banner {cls}">
+        <div class="lbl">Overall Hike</div>
+        <div class="val">{sign}{hike:.1f}%</div>
+        <div class="dlt">That's <b>{fmt_full(abs(diff), currency)}</b> {'more' if diff >= 0 else 'less'} per year ·
+        <b>{fmt_full(abs(monthly_diff), currency)}</b> per month (gross)</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric(
-                "Overall Hike",
-                f"{hike_sign}{hike_pct:.1f}%",
-                f"{fmt_full(abs(diff), currency_sel)} {'more' if diff >= 0 else 'less'} per year"
-            )
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Previous Total CTC", fmt_money(prev_total, currency), fmt_full(prev_total, currency))
+    m2.metric("Current Total CTC", fmt_money(curr_total, currency), fmt_full(curr_total, currency))
+    m3.metric("Monthly Gross (New)", fmt_money(curr_total / 12, currency), "≈ CTC ÷ 12, before tax")
 
-        with col2:
-            st.metric(
-                "Monthly Gross (New)",
-                fmt_money(curr_total / 12, currency_sel),
-                "≈ CTC ÷ 12, before tax"
-            )
+    st.markdown("&nbsp;", unsafe_allow_html=True)
 
-        with col3:
-            st.metric(
-                "Monthly Increase",
-                fmt_full(monthly_diff, currency_sel),
-                f"{(hike_pct):.1f}% hike"
-            )
+    # CTC comparison bars
+    st.markdown('<div class="acc-panel-title">Total CTC — Previous vs Current</div>', unsafe_allow_html=True)
+    b1, b2 = st.columns(2)
+    max_v = max(prev_total, curr_total)
+    with b1:
+        st.caption(f"Previous · {fmt_full(prev_total, currency)}")
+        st.progress(prev_total / max_v)
+    with b2:
+        st.caption(f"Current · {fmt_full(curr_total, currency)}")
+        st.progress(curr_total / max_v)
 
-        st.divider()
+    st.markdown("&nbsp;", unsafe_allow_html=True)
 
-        # Component comparison
-        st.markdown("### 💰 Component-wise Comparison")
+    # Component breakdown
+    st.markdown('<div class="acc-panel-title">Component-wise Breakdown</div>', unsafe_allow_html=True)
+    rows = []
+    for f in FIELDS:
+        p, c = prev[f], curr[f]
+        if not p and not c:
+            continue
+        d = c - p
+        pct = f" ({d / p * 100:+.1f}%)" if p > 0 else ""
+        arrow = "📈" if d > 0 else "📉" if d < 0 else "➡️"
+        rows.append({
+            "Component": FIELD_LABELS[f],
+            "Previous": fmt_full(p, currency) if p else "—",
+            "Current": fmt_full(c, currency) if c else "—",
+            "Change": (f"{'+' if d >= 0 else '−'}{fmt_full(abs(d), currency)}{pct} {arrow}") if d != 0 else "—",
+        })
+    rows.append({
+        "Component": "Monthly Gross (÷ 12)",
+        "Previous": fmt_full(prev_total / 12, currency),
+        "Current": fmt_full(curr_total / 12, currency),
+        "Change": f"{'+' if monthly_diff >= 0 else '−'}{fmt_full(abs(monthly_diff), currency)} 📈",
+    })
+    st.dataframe(rows, width='stretch', hide_index=True)
 
-        comparison_data = []
-        for field in fields_to_extract:
-            prev_val = prev_edited[field]
-            curr_val = curr_edited[field]
+    # Takeaways
+    st.markdown('<div class="acc-panel-title">Key Takeaways</div>', unsafe_allow_html=True)
+    t1, t2, t3 = st.columns(3)
+    t1.info(f"**Annual increase:** {fmt_full(diff, currency)}")
+    if curr["stock"] > prev["stock"] and curr["stock"] > 0:
+        t2.success(f"**New/higher Stock:** {fmt_full(curr['stock'], currency)}/yr 🎉")
+    elif curr["joining"]:
+        t2.success(f"**Joining bonus:** {fmt_full(curr['joining'], currency)}")
+    else:
+        t2.info("**Bonus:** review the breakdown above")
+    t3.warning(f"**New monthly gross:** {fmt_full(curr_total / 12, currency)}")
 
-            if prev_val or curr_val:
-                delta = curr_val - prev_val
-                delta_pct = (delta / prev_val * 100) if prev_val > 0 else 0
-
-                comparison_data.append({
-                    "Component": field_labels[field],
-                    "Previous": fmt_full(prev_val, currency_sel) if prev_val else "—",
-                    "Current": fmt_full(curr_val, currency_sel) if curr_val else "—",
-                    "Change": f"{fmt_full(abs(delta), currency_sel)} {'📈' if delta > 0 else '📉' if delta < 0 else '➡️'}" + (f" ({delta_pct:+.1f}%)" if prev_val > 0 else ""),
-                })
-
-        df_comparison = st.dataframe(
-            comparison_data,
-            use_container_width=True,
-            hide_index=True,
-        )
-
-        st.divider()
-
-        # Bars
-        st.markdown("### 📊 Total CTC Comparison")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Previous Total CTC", fmt_full(prev_total, currency_sel))
-            st.progress(min(prev_total / max(prev_total, curr_total), 1.0))
-
-        with col2:
-            st.metric("Current Total CTC", fmt_full(curr_total, currency_sel))
-            st.progress(min(curr_total / max(prev_total, curr_total), 1.0))
-
-        st.divider()
-
-        # Key takeaways
-        st.markdown("### 🎯 Key Takeaways")
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.info(f"**Annual Increase:** {fmt_full(diff, currency_sel)}")
-
-        with col2:
-            if curr_edited["stock"] > prev_edited["stock"]:
-                st.success(f"**New Stock/RSU:** {fmt_full(curr_edited['stock'], currency_sel)}/year 🎉")
-            elif curr_edited["joining"] > 0:
-                st.success(f"**Joining Bonus:** {fmt_full(curr_edited['joining'], currency_sel)}")
-
-        with col3:
-            st.warning(f"**Monthly Gross:** {fmt_full(curr_total / 12, currency_sel)}")
-
-        st.divider()
-        st.caption("💡 Figures are parsed from your offer letters. Always cross-check with the originals. Monthly = annual ÷ 12 (gross, before tax).")
+    st.markdown('<div class="fineprint">Figures are parsed automatically from your documents — always cross-check with the original offer letters. Monthly ≈ annual ÷ 12 (gross, before tax).</div>', unsafe_allow_html=True)
